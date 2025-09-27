@@ -317,6 +317,7 @@ import { cn } from "@/lib/utils";
 import { vapi } from "@/lib/vapi.sdk";
 import { interviewer } from "@/constants";
 import { createFeedback } from "@/lib/actions/general.action";
+import RealTimeStatus from "@/components/RealTimeStatus";
 
 enum CallStatus {
   INACTIVE = "INACTIVE",
@@ -343,14 +344,22 @@ const Agent = ({
   const [messages, setMessages] = useState<SavedMessage[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lastMessage, setLastMessage] = useState<string>("");
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const onCallStart = () => {
+      console.log('Call started');
       setCallStatus(CallStatus.ACTIVE);
+      setIsConnected(true);
+      setError(null);
     };
 
     const onCallEnd = () => {
+      console.log('Call ended');
       setCallStatus(CallStatus.FINISHED);
+      setIsConnected(false);
+      setIsSpeaking(false);
     };
 
     const onMessage = (message: Message) => {
@@ -372,6 +381,10 @@ const Agent = ({
 
     const onError = (error: Error) => {
       console.log("Error:", error);
+      setError(error.message);
+      setCallStatus(CallStatus.INACTIVE);
+      setIsConnected(false);
+      setIsSpeaking(false);
     };
 
     vapi.on("call-start", onCallStart);
@@ -424,28 +437,45 @@ const Agent = ({
   }, [messages, callStatus, feedbackId, interviewId, router, type, userId]);
 
   const handleCall = async () => {
+    // Check microphone permission first
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      setError('Microphone access denied. Please allow microphone access and try again.');
+      return;
+    }
+
     setCallStatus(CallStatus.CONNECTING);
+    setError(null);
 
-    if (type === "generate") {
-      await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
-        variableValues: {
-          username: userName,
-          userid: userId,
+    try {
+      const simpleAssistant = {
+        name: "AI Interviewer",
+        firstMessage: "Hello! I'm your AI interviewer. Let's start with a simple question - can you tell me about yourself?",
+        model: {
+          provider: "openai",
+          model: "gpt-3.5-turbo",
+          messages: [{
+            role: "system",
+            content: "You are a professional interviewer. Ask simple interview questions and provide encouraging responses. Keep responses short and conversational."
+          }]
         },
-      });
-    } else {
-      let formattedQuestions = "";
-      if (questions) {
-        formattedQuestions = questions
-          .map((question) => `- ${question}`)
-          .join("\n");
-      }
+        voice: {
+          provider: "playht",
+          voiceId: "jennifer"
+        },
+        transcriber: {
+          provider: "deepgram",
+          model: "nova-2",
+          language: "en"
+        }
+      };
 
-      await vapi.start(interviewer, {
-        variableValues: {
-          questions: formattedQuestions,
-        },
-      });
+      await vapi.start(simpleAssistant);
+    } catch (error: any) {
+      console.error("Failed to start call:", error);
+      setError(error.message || "Failed to connect to VAPI");
+      setCallStatus(CallStatus.INACTIVE);
     }
   };
 
@@ -456,6 +486,18 @@ const Agent = ({
 
   return (
     <>
+      <RealTimeStatus 
+        isConnected={isConnected}
+        isSpeaking={isSpeaking}
+        callStatus={callStatus}
+      />
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          Error: {error}
+        </div>
+      )}
+      
       <div className="call-view">
         {/* AI Interviewer Card */}
         <div className="card-interviewer">

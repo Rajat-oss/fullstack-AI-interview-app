@@ -54,6 +54,7 @@ interface Feedback {
     feedbackId?: string;
     type: "generate" | "interview";
     questions?: string[];
+    profileImage?: string;
   }
   
   interface RouteParams {

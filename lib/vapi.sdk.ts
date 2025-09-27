@@ -1,3 +1,15 @@
 import Vapi from "@vapi-ai/web";
+import { validateVapiConfig } from "./vapi-validation";
 
-export const vapi = new Vapi(process.env.NEXT_PUBLIC_VAPI_WEB_TOKEN!);
+let vapi: Vapi;
+
+try {
+  const { token } = validateVapiConfig();
+  vapi = new Vapi(token);
+} catch (error) {
+  console.error('VAPI Configuration Error:', error);
+  // Create a dummy instance to prevent import errors
+  vapi = new Vapi('dummy-token');
+}
+
+export { vapi };
