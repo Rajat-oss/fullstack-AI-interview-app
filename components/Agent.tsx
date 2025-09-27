@@ -467,7 +467,9 @@ const Agent = ({
         transcriber: {
           provider: "deepgram",
           model: "nova-2",
-          language: "en"
+          language: "en",
+          smartFormat: false,
+          keywords: []
         }
       };
 
